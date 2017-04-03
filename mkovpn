@@ -1,0 +1,326 @@
+#!/bin/bash
+#
+# mkovpn - manage OpenVPN client profile (.ovpn) files
+#
+# This is free and unencumbered software released into the public domain.
+# Current version at: https://github.com/chip-rosenthal/mkovpn
+# Chip Rosenthal <chip@unicom.com>
+#
+
+set -o errexit -o nounset -o pipefail
+umask 077
+
+SYNOPSIS="$0 [-h] ACTION ARG ..."
+
+BASEDIR_MKOVPN=$(readlink -f $(dirname $0))
+
+# Adjust this to point to your "easyrsa" installation.
+BASEDIR_EASYRSA="${BASEDIR_MKOVPN}/easy-rsa/easyrsa3"
+
+BASEOVPN_FILE="${BASEDIR_MKOVPN}/BASE.ovpn"
+TLSKEY_FILE="${BASEDIR_MKOVPN}/ta.key"
+CLIENTS_DIR="${BASEDIR_MKOVPN}/clients"
+
+die() {
+    echo "$0: $@" >&2
+    exit 1
+}
+
+usage_error() {
+    echo "usage: $SYNOPSIS (try \"-h\" for help)" >&2
+    exit 1
+}
+
+show_help() {
+    ${PAGER:-less} <<_EOT_
+NAME
+    mkovpn - manage OpenVPN client profile (.ovpn) files
+
+SYNOPSIS
+    $SYNOPSIS
+
+OPTIONS
+    -h      Display this help.
+
+ACTIONS
+    create CLIENT_NAME
+            Create a certificate, secret key, and VPN profile for a client.
+
+    update { CLIENT_NAME | -all }
+            Regenerate VPN profile for a client, using existing
+            certificate and secret key. When "-all" is specified,
+            regenerate the profiles for all current clients.
+
+    revoke CLIENT_NAME
+            Revoke the certificate and secret key for a client, invalidate
+            the profile, and generate a new CRL (certificate revocation
+            list) for the OpenVPN server.
+
+DESCRIPTION
+    mkovpn manages VPN profiles (.ovpn files) for your OpenVPN clients.
+    It works on top of the "Easy RSA" package, a certificate authority (CA)
+    that's distributed with OpenVPN.
+
+    The basic operations are: create, update, and revoke.
+
+    The CLIENT_NAME argument can be either a fully qualified hostname
+    (such as "workstation.example.com") or a descriptive phrase (such as
+    "Francis Laptop").
+
+    The OpenVPN client profile will be stored in the "${CLIENTS_DIR}"
+    directory, named after the CLIENT_NAME with an ".ovpn" filetype.
+    For instance, "Francis Laptop.ovpn".
+
+FILES
+
+    ${BASEDIR_EASYRSA}
+            Location where "Easy RSA" is installed.
+
+    ${BASEOVPN_FILE}
+            Configuration for OpenVPN client.
+
+    ${TLSKEY_FILE}
+            TLS key shared by the client and server, to
+            improve security.
+
+    ${CLIENTS_DIR}
+            Directory in which client profiles are store.
+
+
+AUTHOR
+    Chip Rosenthal
+    <chip@unicom.com>
+
+    This package is published at: https://github.com/chip-rosenthal/mkovpn
+
+UNLICENSE
+    This is free and unencumbered software released into the public domain.
+    See https://raw.githubusercontent.com/chip-rosenthal/mkovpn/master/LICENSE
+
+_EOT_
+}
+
+while getopts 'h' opt ; do
+    case "$opt" in
+    h) show_help ; exit 0 ;;
+    *) usage_error ;;
+    esac
+done
+shift $((OPTIND-1))
+
+
+##############################################################################
+
+
+run_easyrsa() {
+  (
+    cd $BASEDIR_EASYRSA
+    ./easyrsa "$@"
+  )
+}
+
+
+locate_cacert() {
+  if [[ $# -ne 0 ]] ; then
+    die "usage: locate_cacert"
+  fi
+
+  local cacert="${BASEDIR_EASYRSA}/pki/ca.crt"
+  if [[ ! -f "$cacert" ]] ; then
+    die "CA cert file not found"
+  fi
+
+  echo "$cacert"
+}
+
+
+locate_cert() {
+  if [[ $# -ne 1 ]] ; then
+    die "usage: locate_cert CLIENT_NAME"
+  fi
+  local client_name="$1"
+
+  local cert="${BASEDIR_EASYRSA}/pki/issued/${client_name}.crt"
+  if [[ ! -f "$cert" ]] ; then
+    die "cert file for client \"$client_name\" not found"
+  fi
+
+  echo "$cert"
+}
+
+
+locate_key() {
+  if [[ $# -ne 1 ]] ; then
+    die "usage: locate_key CLIENT_NAME"
+  fi
+  local client_name="$1"
+
+  local key="${BASEDIR_EASYRSA}/pki/private/${client_name}.key"
+  if [[ ! -f "$key" ]] ; then
+    die "key file for client \"$client_name\" not found"
+  fi
+
+  echo "$key"
+}
+
+
+locate_client_profile() {
+  if [[ $# -ne 1 ]] ; then
+    die "usage: locate_client_profile CLIENT_NAME"
+  fi
+  local client_name="$1"
+
+  echo "${CLIENTS_DIR}/${client_name}.ovpn"
+}
+
+
+generate_client_profile() {
+  if [[ $# -ne 1 ]] ; then
+    die "usage: generate_client_profile CLIENT_NAME"
+  fi
+  local client_name="$1"
+
+  if [[ "$client_name" = "-all" ]] ; then
+    local ovpn cn
+    for ovpn in clients/*.ovpn ; do
+      cn=$(basename "$ovpn" .ovpn)
+      do_update "$cn"
+    done
+    return 0
+  fi
+
+  for file in "$BASEOVPN_FILE" "$TLSKEY_FILE" ; do
+    if [[ ! -f "$file" ]] ; then
+      echo "$0: required file \"$file\" not found" >&2
+      exit 1
+    fi
+  done
+
+  # Need to split "local" from assignment so errexit works correctly.
+  local cacert_file cert_file key_file client_file
+  cacert_file=$(locate_cacert)
+  cert_file=$(locate_cert "$client_name")
+  key_file=$(locate_key "$client_name")
+  client_file=$(locate_client_profile "$client_name")
+
+  addfile() {
+    local tag="$1"
+    local fname="$2"
+
+    echo ""
+    echo "##### BEGIN ${fname}"
+    echo "<${tag}>"
+    cat "$fname"
+    echo "</${tag}>"
+  }
+
+  local tmpfile=$(mktemp --tmpdir="$CLIENTS_DIR" "${client_name}.XXXXXX")
+  (
+    echo ""
+    echo "# ${client_name}.ovpn"
+    echo "# created `date`"
+    echo ""
+    cat "$BASEOVPN_FILE"
+    addfile tls-auth "$TLSKEY_FILE"
+    addfile ca "$cacert_file"
+    addfile cert "$cert_file"
+    addfile key "$key_file"
+  ) > "$tmpfile"
+  mv "$tmpfile" "$client_file"
+
+  echo "Client profile created at: $client_file"
+}
+
+
+##############################################################################
+
+
+do_create() {
+  SYNOPSIS="$0 [-h] create CLIENT_NAME"
+  if [[ $# -ne 1 ]] ; then
+    usage_error
+  fi
+  local client_name="$1"
+
+  # Need to split "local" from assignment so errexit works correctly.
+  local client_file
+  client_file=$(locate_client_profile "$client_name")
+
+  if [[ -f "$client_file" ]] ; then
+    die "profile already exists for client \"${client_name}\""
+  fi
+
+  run_easyrsa gen-req "$client_name" nopass
+  run_easyrsa sign-req client "$client_name"
+  generate_client_profile "$client_name"
+}
+
+
+do_update() {
+  SYNOPSIS="$0 [-h] update {CLIENT_NAME|-all}"
+  if [[ $# -ne 1 ]] ; then
+    usage_error
+  fi
+  local client_name="$1"
+
+  if [[ "$client_name" = "-all" ]] ; then
+    local ovpn cn
+    for ovpn in clients/*.ovpn ; do
+      cn=$(basename "$ovpn" .ovpn)
+      do_update "$cn"
+    done
+  else
+    generate_client_profile "$client_name"
+  fi
+}
+
+do_revoke() {
+  SYNOPSIS="$0 [-h] revoke CLIENT_NAME"
+  if [[ $# -ne 1 ]] ; then
+    usage_error
+  fi
+  local client_name="$1"
+
+  # Need to split "local" from assignment so errexit works correctly.
+  local cert_file key_file client_file
+  cert_file=$(locate_cert "$client_name")
+  key_file=$(locate_key "$client_name")
+  client_file=$(locate_client_profile "$client_name")
+
+  local ts=$(date "+%Y%m%d%H%M")
+
+  run_easyrsa revoke "$client_name"
+  mv -v "$key_file" "${key_file}.revoked.${ts}"
+  mv -v "$cert_file" "${cert_file}.revoked.${ts}"
+  rm -v "$client_file"
+  run_easyrsa gen-crl
+}
+
+##############################################################################
+
+if [[ $# -eq 0 ]] ; then
+    usage_error
+fi
+ACTION=$1
+shift
+
+case $ACTION in
+
+create)
+  do_create "$@"
+  ;;
+
+update)
+  do_update "$@"
+  ;;
+
+revoke)
+  do_revoke "$@"
+  ;;
+
+*)
+  die "unknown action \"$ACTION\""
+  ;;
+
+esac
+

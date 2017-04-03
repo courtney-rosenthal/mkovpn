@@ -1,0 +1,11 @@
+client
+dev tun
+remote vpn.example.com 8080 tcp
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+remote-cert-tls server
+key-direction 1
+comp-lzo
+verb 3

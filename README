@@ -1,0 +1,42 @@
+NAME
+    mkovpn - generate OpenVPN client profile files
+
+SYNOPSIS
+    mkovpn [-h] ACTION ARG ...
+
+OPTIONS
+    -h      Display this help.
+
+ACTIONS
+    create CLIENT_NAME
+            Create a certificate, secret key, and VPN profile for a client.
+
+    update { CLIENT_NAME | -all }
+            Regenerate VPN profile for a client, using existing
+            certificate and secret key. When "-all" is specified,
+            regenerate the profiles for all current clients.
+
+    revoke CLIENT_NAME
+            Revoke the certificate and secret key for a client, invalidate
+            the profile, and generate a new CRL (certificate revocation list)
+            for the OpenVPN server.
+
+DESCRIPTION
+    The CLIENT_NAME argument can be either a fully qualified hostname
+    (such as "workstation.example.com") or a descriptive phrase (such as
+    "Francis Laptop").
+
+    The OpenVPN client profile (OVPN file) will be stored in the
+    "/home/chip/Workspace/mkovpn/clients" directory, named after the CLIENT_NAME with an
+    ".ovpn" filetype.
+
+AUTHOR
+    Chip Rosenthal
+    <chip@unicom.com>
+
+    This package is published at: https://github.com/chip-rosenthal/mkovpn
+
+UNLICENSE
+    This is free and unencumbered software released into the public domain.
+    See https://raw.githubusercontent.com/chip-rosenthal/mkovpn/master/LICENSE
+

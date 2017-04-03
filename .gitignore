@@ -1,0 +1,4 @@
+BASE.ovpn
+easy-rsa
+ta.key
+clients/*
