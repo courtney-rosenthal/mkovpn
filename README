@@ -1,8 +1,8 @@
 NAME
-    mkovpn - generate OpenVPN client profile files
+    mkovpn - manage OpenVPN client profile (.ovpn) files
 
 SYNOPSIS
-    mkovpn [-h] ACTION ARG ...
+    ./mkovpn [-h] ACTION ARG ...
 
 OPTIONS
     -h      Display this help.
@@ -18,17 +18,39 @@ ACTIONS
 
     revoke CLIENT_NAME
             Revoke the certificate and secret key for a client, invalidate
-            the profile, and generate a new CRL (certificate revocation list)
-            for the OpenVPN server.
+            the profile, and generate a new CRL (certificate revocation
+            list) for the OpenVPN server.
 
 DESCRIPTION
+    mkovpn manages VPN profiles (.ovpn files) for your OpenVPN clients.
+    It works on top of the "Easy RSA" package, a certificate authority (CA)
+    that's distributed with OpenVPN.
+
+    The basic operations are: create, update, and revoke.
+
     The CLIENT_NAME argument can be either a fully qualified hostname
     (such as "workstation.example.com") or a descriptive phrase (such as
     "Francis Laptop").
 
-    The OpenVPN client profile (OVPN file) will be stored in the
-    "/home/chip/Workspace/mkovpn/clients" directory, named after the CLIENT_NAME with an
-    ".ovpn" filetype.
+    The OpenVPN client profile will be stored in the "/home/chip/Workspace/mkovpn/clients"
+    directory, named after the CLIENT_NAME with an ".ovpn" filetype.
+    For instance, "Francis Laptop.ovpn".
+
+FILES
+
+    /home/chip/Workspace/mkovpn/easy-rsa/easyrsa3
+            Location where "Easy RSA" is installed.
+
+    /home/chip/Workspace/mkovpn/BASE.ovpn
+            Configuration for OpenVPN client.
+
+    /home/chip/Workspace/mkovpn/ta.key
+            TLS key shared by the client and server, to
+            improve security.
+
+    /home/chip/Workspace/mkovpn/clients
+            Directory in which client profiles are store.
+
 
 AUTHOR
     Chip Rosenthal
