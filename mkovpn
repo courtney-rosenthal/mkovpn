@@ -51,10 +51,11 @@ ACTIONS
             certificate and secret key. When "-all" is specified,
             regenerate the profiles for all current clients.
 
-    revoke CLIENT_NAME
+    revoke { CLIENT_NAME | -none }
             Revoke the certificate and secret key for a client, invalidate
             the profile, and generate a new CRL (certificate revocation
-            list) for the OpenVPN server.
+            list) for the OpenVPN server. When "-none" is specified
+            no revocations are performed but the CRL is regenerated.
 
 DESCRIPTION
     mkovpn manages VPN profiles (.ovpn files) for your OpenVPN clients.
@@ -281,18 +282,22 @@ do_revoke() {
   fi
   local client_name="$1"
 
-  # Need to split "local" from assignment so errexit works correctly.
-  local cert_file key_file client_file
-  cert_file=$(locate_cert "$client_name")
-  key_file=$(locate_key "$client_name")
-  client_file=$(locate_client_profile "$client_name")
+  if [[ "$client_name" != "-none" ]] ; then
 
-  local ts=$(date "+%Y%m%d%H%M")
+    # Need to split "local" from assignment so errexit works correctly.
+    local cert_file key_file client_file
+    cert_file=$(locate_cert "$client_name")
+    key_file=$(locate_key "$client_name")
+    client_file=$(locate_client_profile "$client_name")
 
-  run_easyrsa revoke "$client_name"
-  mv -v "$key_file" "${key_file}.revoked.${ts}"
-  mv -v "$cert_file" "${cert_file}.revoked.${ts}"
-  rm -v "$client_file"
+    local ts=$(date "+%Y%m%d%H%M")
+
+    run_easyrsa revoke "$client_name"
+    mv -v "$key_file" "${key_file}.revoked.${ts}"
+    mv -v "$cert_file" "${cert_file}.revoked.${ts}"
+    rm -v "$client_file"
+
+  fi
   run_easyrsa gen-crl
 }
 

@@ -2,7 +2,7 @@ NAME
     mkovpn - manage OpenVPN client profile (.ovpn) files
 
 SYNOPSIS
-    ./mkovpn [-h] ACTION ARG ...
+    mkovpn [-h] ACTION ARG ...
 
 OPTIONS
     -h      Display this help.
@@ -16,10 +16,11 @@ ACTIONS
             certificate and secret key. When "-all" is specified,
             regenerate the profiles for all current clients.
 
-    revoke CLIENT_NAME
+    revoke { CLIENT_NAME | -none }
             Revoke the certificate and secret key for a client, invalidate
             the profile, and generate a new CRL (certificate revocation
-            list) for the OpenVPN server.
+            list) for the OpenVPN server. When "-none" is specified
+            no revocations are performed but the CRL is regenerated.
 
 DESCRIPTION
     mkovpn manages VPN profiles (.ovpn files) for your OpenVPN clients.
@@ -32,23 +33,23 @@ DESCRIPTION
     (such as "workstation.example.com") or a descriptive phrase (such as
     "Francis Laptop").
 
-    The OpenVPN client profile will be stored in the "/home/chip/Workspace/mkovpn/clients"
+    The OpenVPN client profile will be stored in the "/usr/local/conf/soaustin_vpn_clients/clients"
     directory, named after the CLIENT_NAME with an ".ovpn" filetype.
     For instance, "Francis Laptop.ovpn".
 
 FILES
 
-    /home/chip/Workspace/mkovpn/easy-rsa/easyrsa3
+    /usr/local/conf/soaustin_vpn_clients/easy-rsa/easyrsa3
             Location where "Easy RSA" is installed.
 
-    /home/chip/Workspace/mkovpn/BASE.ovpn
+    /usr/local/conf/soaustin_vpn_clients/BASE.ovpn
             Configuration for OpenVPN client.
 
-    /home/chip/Workspace/mkovpn/ta.key
+    /usr/local/conf/soaustin_vpn_clients/ta.key
             TLS key shared by the client and server, to
             improve security.
 
-    /home/chip/Workspace/mkovpn/clients
+    /usr/local/conf/soaustin_vpn_clients/clients
             Directory in which client profiles are store.
 
 
